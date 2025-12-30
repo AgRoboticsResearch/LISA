@@ -107,6 +107,14 @@ ln -sf libbitsandbytes_cuda129.so libbitsandbytes_cuda128.so
 
 ```
 
+## 4. Installing Flash Attention
+
+For RTX 5090, use the following pre-built wheel for Flash Attention:
+
+```bash
+pip install https://github.com/loscrossos/lib_flashattention/releases/download/v2.7.4.post1_crossos00/flash_attn-2.7.4.post1+cu129torch2.7.0-cp312-cp312-linux_x86_64.whl
+```
+
 ---
 
 
