@@ -15,20 +15,47 @@ import torch
 from transformers.models.bloom.modeling_bloom import (
     BaseModelOutputWithPastAndCrossAttentions, BloomForCausalLM, BloomModel,
     CausalLMOutputWithCrossAttentions, CrossEntropyLoss)
-from transformers.models.bloom.modeling_bloom import \
-    _expand_mask as _expand_mask_bloom
-from transformers.models.bloom.modeling_bloom import \
-    _make_causal_mask as _make_causal_mask_bloom
+# from transformers.models.bloom.modeling_bloom import \
+#     _expand_mask as _expand_mask_bloom
+# from transformers.models.bloom.modeling_bloom import \
+#     _make_causal_mask as _make_causal_mask_bloom
 from transformers.models.bloom.modeling_bloom import logging
 from transformers.models.gpt2.modeling_gpt2 import GPT2LMHeadModel
 from transformers.models.gpt_neo.modeling_gpt_neo import GPTNeoForCausalLM
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXForCausalLM
 from transformers.models.gptj.modeling_gptj import GPTJForCausalLM
 from transformers.models.opt.modeling_opt import OPTForCausalLM
-from transformers.models.opt.modeling_opt import \
-    _expand_mask as _expand_mask_opt
-from transformers.models.opt.modeling_opt import \
-    _make_causal_mask as _make_causal_mask_opt
+# from transformers.models.opt.modeling_opt import \
+#     _expand_mask as _expand_mask_opt
+# from transformers.models.opt.modeling_opt import \
+#     _make_causal_mask as _make_causal_mask_opt
+
+from transformers.models.bloom.modeling_bloom import build_alibi_tensor
+
+# --- START OF MANUAL PATCH ---
+def _make_causal_mask(input_ids_shape: torch.Size, dtype: torch.dtype, device: torch.device, past_key_values_length: int = 0):
+    bsz, tgt_len = input_ids_shape
+    mask = torch.full((tgt_len, tgt_len), torch.finfo(dtype).min, device=device)
+    mask_cond = torch.arange(mask.size(-1), device=device)
+    mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
+    mask = mask.to(dtype)
+    if past_key_values_length > 0:
+        mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, device=device, dtype=dtype), mask], dim=-1)
+    return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
+
+def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None):
+    bsz, src_len = mask.size()
+    tgt_len = tgt_len if tgt_len is not None else src_len
+    expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
+    inverted_mask = 1.0 - expanded_mask
+    return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
+
+# Map the local functions to the names the MPT code expects
+_expand_mask_bloom = _expand_mask
+_make_causal_mask_bloom = _make_causal_mask
+_expand_mask_opt = _expand_mask
+_make_causal_mask_opt = _make_causal_mask
+# --- END OF MANUAL PATCH ---
 
 logger = logging.get_logger(__name__)
 _SUPPORTED_GPT_MODELS = (
